@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 node_modules/
 build/
 .DS_Store
 .env
+=======
+**/node_modules
+>>>>>>> 62f640880ca5b94788caade217cffe81820beb54
