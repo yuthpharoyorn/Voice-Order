@@ -49,6 +49,7 @@ class ItemUpdate(BaseModel):
     id: int
     price: float
     category: str
+    image: str 
 
 @app.get("/menu-items")
 def get_menu_items(db: Session = Depends(get_db)):
@@ -178,6 +179,7 @@ def update_menu_item(data: ItemUpdate, db: Session = Depends(get_db)):
 
     item.price = data.price
     item.category = data.category
+    item.image = data.image
     db.commit()
     db.refresh(item)
 
@@ -186,7 +188,9 @@ def update_menu_item(data: ItemUpdate, db: Session = Depends(get_db)):
         "item": {
             "id": item.id,
             "price": item.price,
-            "category": item.category
+            "category": item.category,
+            "image": item.image
+
         }
     }
 
