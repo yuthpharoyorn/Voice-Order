@@ -1,0 +1,41 @@
+.app-container {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.left-side {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 200px;
+  height: 100vh;
+  background-color: gray;
+  padding: 20px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  
+}
+
+.top-side {
+  margin-left: 300px;
+  
+}
+
+.top-side h1 {
+  text-align:center;
+  color: black;
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  margin-left: 300px;
+}
+
+.content {
+  flex: 1;
+  padding: 20px;
+}
