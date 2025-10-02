@@ -1,23 +1,67 @@
-from datetime import date
-from fastapi import FastAPI, HTTPException, Depends
+from datetime import date,datetime,timedelta
+from fastapi import FastAPI, HTTPException, Depends,status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from schema import CreateMenuItem
-from models import MenuItem, Order as OrderModel 
+from models import Admin, MenuItem, Order as OrderModel 
 from database import SessionLocal
 from pydantic import BaseModel
 from typing import List
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from dotenv import load_dotenv
+import os
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+
+
+
+
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+load_dotenv(dotenv_path="unknown.txt")
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str):
+    return pwd_context.hash(password)
+
+def verify_password(password: str, hashed: str):
+    return pwd_context.verify(password, hashed)
+
+def get_admin_by_username(db: Session, username: str):
+    return db.query(Admin).filter(Admin.username == username).first()
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return token
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 app = FastAPI()
 
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],  
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://192.168.86.1:3000",  # <-- add this
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 from database import Base, engine
 
@@ -221,3 +265,37 @@ def create_menu_item(item: CreateMenuItem, db: Session = Depends(get_db)):
         "image": new_item.image,
         "category": new_item.category
     }}
+
+@app.post("/login")
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = get_admin_by_username(db, form_data.username)
+    if not user or not verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    
+    access_token = create_access_token(data={"sub": user.username, "role": user.role})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        role = payload.get("role")
+        if username is None or role != "admin":
+            raise HTTPException(status_code=403, detail="Not authorized")
+        return {"username": username, "role": role}
+    except JWTError:
+        raise HTTPException(status_code=403, detail="Invalid token")
+
+@app.get("/admin/dashboard")
+def admin_dashboard(current_user: dict = Depends(get_current_user)):
+    return {"message": f"Welcome {current_user['username']} to the admin dashboard!"}
+
+@app.post("/create-admin")
+def create_admin(username: str, password: str, db: Session = Depends(get_db)):
+    existing = db.query(Admin).filter(Admin.username == username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    admin = Admin(username=username, hashed_password=hash_password(password))
+    db.add(admin)
+    db.commit()
+    return {"message": f"Admin '{username}' created successfully"}
